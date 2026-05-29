@@ -1,10 +1,33 @@
 import requests
 import math
 import time
+import json
+import os
 import threading
 import api_key_priv as apikey
 
+CACHE_FILE = 'parking_cache.json'
 cached_parking_data = {}
+
+def load_cache_from_file():
+    global cached_parking_data
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+                cached_parking_data = json.load(f)
+            print(f"로컬 파일에서 기존 캐시 로드 완료. 총 {len(cached_parking_data)}개")
+        except Exception as e:
+            print(f"로컬 캐시 파일 로드 실패: {e}")
+    else:
+        print("기존 로컬 캐시 파일 존재하지 않음")
+
+def save_cache_to_file(data):
+    try:
+        with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        print("최신 캐시 데이터 로컬 파일 백업 완료")
+    except Exception as e:
+        print(f"로컬 파일 백업 실패: {e}")
 
 def update_parking_cache_loop():
     base_url = 'https://apis.data.go.kr/B553881/Parking/PrkRealtimeInfo'
@@ -57,6 +80,7 @@ def update_parking_cache_loop():
             global cached_parking_data
             cached_parking_data = temp_cache
             print(f"동기화 완료. 총 {len(cached_parking_data)}개 캐시 로드 완료")
+            save_cache_to_file(cached_parking_data)
         
         print("30초 후 다음 전체 갱신 시작")
         time.sleep(30)
@@ -65,6 +89,9 @@ def search_parking_from_cache(target_id):
     if not cached_parking_data:
         return {"error": "현재 캐시 데이터 비어 있음. 잠시 후 다시 시도 요망."}
     return cached_parking_data.get(target_id, {"error": "해당 ID의 주차장 정보 검색 실패."})
+
+# 프로그램 시작 시 로컬 백업 파일 먼저 로드
+load_cache_from_file()
 
 bg_thread = threading.Thread(target=update_parking_cache_loop, daemon=True)
 bg_thread.start()

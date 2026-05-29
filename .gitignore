@@ -1,3 +1,4 @@
 .venv/
 backend/api_key_priv.py
+backend/parking_cache.json
 
