@@ -35,4 +35,9 @@ class ParkingLot {
       availableSpaces: availableSpaces ?? this.availableSpaces,
     );
   }
+  @override
+  bool operator ==(Object other) => other is ParkingLot && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
 }
