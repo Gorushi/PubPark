@@ -43,3 +43,6 @@ def analyze_parking_demand():
     
     model = LinearRegression()
     model.fit(train[f_cols], train['pkfc_Available_ParkingLots_total'])
+    
+    predictions = model.predict(test[f_cols])
+    test['preds'] = predictions
