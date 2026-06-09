@@ -46,3 +46,7 @@ def analyze_parking_demand():
     
     predictions = model.predict(test[f_cols])
     test['preds'] = predictions
+    
+    mse = np.mean((test['pkfc_Available_ParkingLots_total'] - test['preds']) ** 2)
+    mae = np.mean(np.abs(test['pkfc_Available_ParkingLots_total'] - test['preds']))
+    print(f"평가 결과 - MSE: {mse}, MAE: {mae}")
