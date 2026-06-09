@@ -16,3 +16,7 @@ def analyze_parking_demand():
     
     adf_res = adfuller(df['pkfc_Available_ParkingLots_total'])
     print(f"p-value: {adf_res[1]}")
+    
+    adf_res = adfuller(df['pkfc_Available_ParkingLots_total'])
+    
+    df['diff_target'] = df['pkfc_Available_ParkingLots_total'].diff()
