@@ -23,3 +23,6 @@ def analyze_parking_demand():
     
     df['roll_mean'] = df['pkfc_Available_ParkingLots_total'].rolling(window=7).mean()
     df['roll_std'] = df['pkfc_Available_ParkingLots_total'].rolling(window=7).std()
+    
+    df['lag_1'] = df['pkfc_Available_ParkingLots_total'].shift(1)
+    df['lag_2'] = df['pkfc_Available_ParkingLots_total'].shift(2)
