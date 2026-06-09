@@ -12,9 +12,9 @@ class ParkingLot {
   /// 역직렬화: 서버 JSON → Dart 객체
   factory ParkingLot.fromJson(Map<String, dynamic> json) {
     return ParkingLot(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      availableSpaces: json['available_spaces'] as int,
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '이름 없음',
+      availableSpaces: (json['available_spaces'] as num?)?.toInt() ?? 0,
     );
   }
 
