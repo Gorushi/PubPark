@@ -50,3 +50,10 @@ def analyze_parking_demand():
     mse = np.mean((test['pkfc_Available_ParkingLots_total'] - test['preds']) ** 2)
     mae = np.mean(np.abs(test['pkfc_Available_ParkingLots_total'] - test['preds']))
     print(f"평가 결과 - MSE: {mse}, MAE: {mae}")
+    
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(12, 6))
+    plt.plot(test.index, test['pkfc_Available_ParkingLots_total'], label='Real')
+    plt.plot(test.index, test['preds'], label='Predict')
+    plt.legend()
+    plt.savefig('parking_demand_result.png')
