@@ -45,3 +45,7 @@ app.*.map.json
 # 환경 설정
 .env
 *.log
+
+# IDE
+.vscode/
+*.iml
