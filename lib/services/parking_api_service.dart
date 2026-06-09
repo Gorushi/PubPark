@@ -24,6 +24,7 @@ class ParkingApiService {
 
       if (response.statusCode == 200) {
         final List<dynamic> jsonList = jsonDecode(response.body);
+        if (jsonList.isEmpty) return [];
         return jsonList
             .map((json) => ParkingLot.fromJson(json as Map<String, dynamic>))
             .toList();
