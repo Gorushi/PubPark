@@ -57,8 +57,12 @@ class ParkingApiService {
       if (response.statusCode == 200) {
         return ParkingLot.fromJson(
             jsonDecode(response.body) as Map<String, dynamic>);
+      } else if (response.statusCode == 401) {
+        throw Exception('인증 실패: 토큰을 확인해주세요.');
       } else if (response.statusCode == 404) {
         throw Exception('해당 주차장을 찾을 수 없습니다.');
+      } else if (response.statusCode >= 500) {
+        throw Exception('서버 오류 (${response.statusCode}): 잠시 후 다시 시도해주세요.');
       } else {
         throw Exception('요청 실패: ${response.statusCode}');
       }
