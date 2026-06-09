@@ -27,4 +27,12 @@ class ParkingLot {
 
   @override
   String toString() => 'ParkingLot(id: $id, name: $name, availableSpaces: $availableSpaces)';
+
+  ParkingLot copyWith({String? id, String? name, int? availableSpaces}) {
+    return ParkingLot(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      availableSpaces: availableSpaces ?? this.availableSpaces,
+    );
+  }
 }
