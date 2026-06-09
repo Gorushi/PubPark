@@ -26,3 +26,6 @@ def analyze_parking_demand():
     
     df['lag_1'] = df['pkfc_Available_ParkingLots_total'].shift(1)
     df['lag_2'] = df['pkfc_Available_ParkingLots_total'].shift(2)
+    
+    df['hour'] = df.index.hour
+    df['dayofweek'] = df.index.dayofweek
