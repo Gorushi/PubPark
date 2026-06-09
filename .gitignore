@@ -65,3 +65,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+.venv/
+backend/api_key_priv.py
+backend/parking_cache.json
+
