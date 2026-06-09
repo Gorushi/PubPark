@@ -39,3 +39,7 @@ def analyze_parking_demand():
     
     border = int(len(df) * 0.8)
     train, test = df.iloc[:border], df.iloc[border:]
+    f_cols = ['lag_1', 'lag_2', 'hour', 'dayofweek']
+    
+    model = LinearRegression()
+    model.fit(train[f_cols], train['pkfc_Available_ParkingLots_total'])
