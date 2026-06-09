@@ -29,3 +29,9 @@ def analyze_parking_demand():
     
     df['hour'] = df.index.hour
     df['dayofweek'] = df.index.dayofweek
+    
+    df.dropna(inplace=True)
+    f_cols = ['lag_1', 'lag_2', 'hour', 'dayofweek']
+    
+    scaler = StandardScaler()
+    df[f_cols] = scaler.fit_transform(df[f_cols])
