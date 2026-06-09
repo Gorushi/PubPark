@@ -12,7 +12,47 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: KakaoMapScreen(),
+      home:
+          const SplashScreen(), // 수정사항. 처음에 SplashScreen이 보이고, 이후에 KakaoMapScreen으로 이동하도록 변경
+    );
+  }
+}
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 2500), () {
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const KakaoMapScreen()),
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF6FA4FF),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset('assets/Pub Park logo.png', width: 150),
+            const SizedBox(height: 40),
+            const CircularProgressIndicator(color: Colors.white),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -23,12 +63,10 @@ class KakaoMapScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Test Kakao Map"),
-      ),
-        body: InAppWebView(
-          initialData: InAppWebViewInitialData(
-            data: '''
+      appBar: AppBar(title: const Text("Test Kakao Map")),
+      body: InAppWebView(
+        initialData: InAppWebViewInitialData(
+          data: '''
                   <!DOCTYPE html>
                   <html>
                   <head>
@@ -75,9 +113,8 @@ class KakaoMapScreen extends StatelessWidget {
                   </body>
                   </html>
                   ''',
-          ),
-
-        )
+        ),
+      ),
     );
   }
 }
