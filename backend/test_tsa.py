@@ -18,5 +18,8 @@ def analyze_parking_demand():
     print(f"p-value: {adf_res[1]}")
     
     adf_res = adfuller(df['pkfc_Available_ParkingLots_total'])
-    
+
     df['diff_target'] = df['pkfc_Available_ParkingLots_total'].diff()
+    
+    df['roll_mean'] = df['pkfc_Available_ParkingLots_total'].rolling(window=7).mean()
+    df['roll_std'] = df['pkfc_Available_ParkingLots_total'].rolling(window=7).std()
