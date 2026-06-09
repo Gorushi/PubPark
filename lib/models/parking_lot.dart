@@ -24,4 +24,7 @@ class ParkingLot {
     'name': name,
     'available_spaces': availableSpaces,
   };
+
+  @override
+  String toString() => 'ParkingLot(id: $id, name: $name, availableSpaces: $availableSpaces)';
 }
