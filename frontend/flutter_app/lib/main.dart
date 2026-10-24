@@ -1,8 +1,11 @@
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const ParkingApp());
 }
 
@@ -12,21 +15,22 @@ class ParkingApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '주차장 길찾기',
+      title: '주차장 경로 안내',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2563EB),
+          seedColor: Colors.blue,
         ),
-        scaffoldBackgroundColor: Colors.white,
+        useMaterial3: true,
       ),
       home: const HomeScreen(),
     );
   }
 }
 
+// 주차장 경로 데이터 모델
 class ParkingRoute {
+  final String id;
   final String parkingName;
   final String distance;
   final String duration;
@@ -34,6 +38,7 @@ class ParkingRoute {
   final int availableSpaces;
 
   const ParkingRoute({
+    required this.id,
     required this.parkingName,
     required this.distance,
     required this.duration,
@@ -50,73 +55,138 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final TextEditingController _searchController =
-  TextEditingController();
-
   InAppWebViewController? _mapController;
 
-  bool _showRoutes = false;
-  int? _selectedRoute;
+  final TextEditingController _destinationController =
+  TextEditingController();
 
+  String _destination = '';
+  bool _showRoutes = true;
+
+  // 테스트용 주차장 데이터
+  // 실제 API를 연결하면 API 응답으로 교체할 수 있음.
   final List<ParkingRoute> _routes = const [
     ParkingRoute(
+      id: 'parking1',
       parkingName: '제1 공영주차장',
-      distance: '1.2 km',
-      duration: '5분',
-      totalSpaces: 120,
-      availableSpaces: 18,
+      distance: '300m',
+      duration: '도보 4분',
+      totalSpaces: 100,
+      availableSpaces: 25,
     ),
     ParkingRoute(
+      id: 'parking2',
       parkingName: '제2 공영주차장',
-      distance: '1.6 km',
-      duration: '7분',
+      distance: '500m',
+      duration: '도보 7분',
       totalSpaces: 80,
-      availableSpaces: 32,
+      availableSpaces: 12,
     ),
   ];
 
+  @override
+  void dispose() {
+    _destinationController.dispose();
+    super.dispose();
+  }
+
+  // 목적지 검색
   void _searchDestination() {
-    final destination = _searchController.text.trim();
+    final destination = _destinationController.text.trim();
 
     if (destination.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('목적지를 입력해 주세요.')),
+        const SnackBar(
+          content: Text('목적지를 입력해주세요.'),
+        ),
       );
       return;
     }
 
+    setState(() {
+      _destination = destination;
+      _showRoutes = true;
+    });
+
     FocusScope.of(context).unfocus();
 
-    setState(() {
-      _showRoutes = true;
-      _selectedRoute = null;
-    });
-
-    // TODO: 검색한 목적지를 지도에 표시하고
-    // 백엔드에서 실제 경로와 주차장 정보를 받아오도록 연결
+    // 현재는 테스트 주차장 목록을 표시한다.
+    // 실제 목적지 검색 및 경로 탐색은 API 연결이 필요하다.
   }
 
-  void _selectRoute(int index) {
-    setState(() {
-      _selectedRoute = index;
-    });
+  // JavaScript에서 전달한 주차장 마커 클릭 이벤트 수신
+  void _registerParkingMarkerHandler(
+      InAppWebViewController controller,
+      ) {
+    controller.addJavaScriptHandler(
+      handlerName: 'parkingMarkerClicked',
+      callback: (args) {
+        if (args.isEmpty || !mounted) {
+          return null;
+        }
 
-    // TODO: 선택한 경로를 카카오맵에 표시
+        final parkingId = args.first.toString();
+
+        final index = _routes.indexWhere(
+              (route) => route.id == parkingId,
+        );
+
+        if (index != -1) {
+          _showParkingDetails(_routes[index]);
+        }
+
+        return null;
+      },
+    );
   }
 
+  // 주차장 데이터를 Kakao 지도에 전달
+  Future<void> _sendParkingMarkers() async {
+    final controller = _mapController;
+
+    if (controller == null) {
+      return;
+    }
+
+    final parkingLots = [
+      {
+        'id': 'parking1',
+        'name': '제1 공영주차장',
+        'latitude': 36.6358,
+        'longitude': 127.4914,
+      },
+      {
+        'id': 'parking2',
+        'name': '제2 공영주차장',
+        'latitude': 36.6390,
+        'longitude': 127.4960,
+      },
+    ];
+
+    try {
+      await controller.evaluateJavascript(
+        source:
+        'window.setParkingLots(${jsonEncode(parkingLots)});',
+      );
+    } catch (e) {
+      debugPrint('주차장 마커 전송 오류: $e');
+    }
+  }
+
+  // 주차장 상세 정보 바텀시트
   void _showParkingDetails(ParkingRoute parking) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) {
-        final availableRatio =
-        parking.totalSpaces == 0
-            ? 0.0
-            : parking.availableSpaces / parking.totalSpaces;
+      builder: (sheetContext) {
+        final double availableRatio =
+        parking.totalSpaces > 0
+            ? parking.availableSpaces / parking.totalSpaces
+            : 0.0;
 
         return Container(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.vertical(
@@ -148,66 +218,91 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  '주차장 상세 정보',
-                  style: TextStyle(color: Colors.grey),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.directions_walk,
+                      size: 20,
+                      color: Colors.blue,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${parking.distance} · ${parking.duration}',
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 24),
                 Row(
                   children: [
                     Expanded(
-                      child: _ParkingStat(
-                        title: '전체 주차 면수',
-                        value: '${parking.totalSpaces}면',
+                      child: _buildParkingInfo(
+                        title: '전체 주차면',
+                        value: '${parking.totalSpaces}대',
                         icon: Icons.local_parking,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _ParkingStat(
-                        title: '잔여 주차 면수',
-                        value: '${parking.availableSpaces}면',
+                      child: _buildParkingInfo(
+                        title: '현재 여유',
+                        value: '${parking.availableSpaces}대',
                         icon: Icons.check_circle_outline,
-                        valueColor: Colors.green.shade700,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('잔여 공간 비율'),
-                    Text('${(availableRatio * 100).round()}%'),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  value: availableRatio,
-                  minHeight: 8,
-                  borderRadius: BorderRadius.circular(8),
-                  backgroundColor: Colors.grey.shade200,
-                  color: Colors.green,
-                ),
-                const SizedBox(height: 20),
                 const Text(
-                  '※ 현재 표시되는 정보는 화면 테스트용 예시입니다.',
+                  '주차 가능 현황',
                   style: TextStyle(
-                    color: Colors.grey,
-                    fontSize: 12,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: availableRatio.clamp(0.0, 1.0),
+                    minHeight: 10,
+                    backgroundColor: Colors.grey.shade200,
+                    color: availableRatio > 0.3
+                        ? Colors.green
+                        : Colors.orange,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '주차 가능 ${parking.availableSpaces}대 / '
+                      '${parking.totalSpaces}대',
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
-                  child: FilledButton.icon(
+                  child: ElevatedButton.icon(
                     onPressed: () {
-                      Navigator.pop(context);
-                      final index = _routes.indexOf(parking);
-                      if (index >= 0) _selectRoute(index);
+                      Navigator.pop(sheetContext);
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            '${parking.parkingName}: 경로 선택 기능은 '
+                                '경로 API 연결 후 구현할 수 있습니다.',
+                          ),
+                        ),
+                      );
                     },
                     icon: const Icon(Icons.directions),
-                    label: const Text('이 주차장 경로 선택'),
+                    label: const Text('이 주차장 선택'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -218,10 +313,122 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
+  // 상세 정보의 주차면 정보 카드
+  Widget _buildParkingInfo({
+    required String title,
+    required String value,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            color: Colors.blue,
+            size: 24,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 하단 주차장 경로 후보 카드
+  Widget _buildRouteCard(ParkingRoute parking, int index) {
+    final bool hasSpace = parking.availableSpaces > 0;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _showParkingDetails(parking),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${index + 1}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      parking.parkingName,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '${parking.distance} · ${parking.duration}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '여유 주차 ${parking.availableSpaces}대',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: hasSpace ? Colors.green : Colors.red,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right,
+                color: Colors.grey,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -231,84 +438,86 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // 1. 전체 화면 지도
+            // 배경 Kakao 지도
             Positioned.fill(
               child: InAppWebView(
                 initialFile: 'assets/map.html',
                 initialSettings: InAppWebViewSettings(
                   javaScriptEnabled: true,
-                  transparentBackground: false,
+                  transparentBackground: true,
                 ),
                 onWebViewCreated: (controller) {
                   _mapController = controller;
-
-                  controller.addJavaScriptHandler(
-                    handlerName: 'mapStatus',
-                    callback: (args) {
-                      debugPrint('[Map status] ${args.first}');
-                      return null;
-                    },
-                  );
+                  _registerParkingMarkerHandler(controller);
                 },
                 onLoadStop: (controller, url) async {
-                  final size = await controller.evaluateJavascript(
-                    source: '''
-                JSON.stringify({
-                  windowWidth: window.innerWidth,
-                  windowHeight: window.innerHeight,
-                  mapWidth: document.getElementById('map').clientWidth,
-                  mapHeight: document.getElementById('map').clientHeight
-                })
-              ''',
+                  // 지도 초기화 시간을 잠시 확보
+                  await Future.delayed(
+                    const Duration(milliseconds: 500),
                   );
 
-                  debugPrint('[Map dimensions] $size');
+                  if (mounted) {
+                    await _sendParkingMarkers();
+                  }
                 },
                 onConsoleMessage: (controller, consoleMessage) {
-                  debugPrint('[WebView] ${consoleMessage.message}');
-                },
-                onReceivedError: (controller, request, error) {
                   debugPrint(
-                    '[WebView error] ${request.url}: ${error.description}',
+                    'Kakao Map: ${consoleMessage.message}',
                   );
                 },
               ),
             ),
 
-            // 2. 상단 목적지 검색창
+            // 상단 목적지 검색창
             SafeArea(
               child: Align(
                 alignment: Alignment.topCenter,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  padding: const EdgeInsets.fromLTRB(
+                    16,
+                    10,
+                    16,
+                    0,
+                  ),
                   child: Material(
                     elevation: 5,
-                    shadowColor: Colors.black12,
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
-                    child: TextField(
-                      controller: _searchController,
-                      textInputAction: TextInputAction.search,
-                      onSubmitted: (_) => _searchDestination(),
-                      decoration: InputDecoration(
-                        hintText: '어디로 이동하시나요?',
-                        prefixIcon: const Icon(
-                          Icons.search,
-                          color: Color(0xFF2563EB),
-                        ),
-                        suffixIcon: IconButton(
-                          tooltip: '목적지 검색',
-                          onPressed: _searchDestination,
-                          icon: const Icon(Icons.arrow_forward),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: 18,
-                        ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 4,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.search,
+                            color: Colors.blue,
+                            size: 26,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextField(
+                              controller: _destinationController,
+                              textInputAction: TextInputAction.search,
+                              onSubmitted: (_) => _searchDestination(),
+                              decoration: InputDecoration(
+                                hintText: '목적지를 입력하세요',
+                                border: InputBorder.none,
+                                hintStyle: TextStyle(
+                                  color: Colors.grey.shade500,
+                                ),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: _searchDestination,
+                            icon: const Icon(
+                              Icons.arrow_forward,
+                              color: Colors.blue,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -316,33 +525,30 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // 3. 현재 위치 버튼
+            // 현재 위치 버튼
             Positioned(
               right: 16,
-              bottom: _showRoutes ? 285 : 28,
-              child: SafeArea(
-                child: FloatingActionButton.small(
-                  heroTag: 'currentLocation',
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF2563EB),
-                  elevation: 4,
-                  tooltip: '현재 위치',
-                  onPressed: () {
-                    // TODO: GPS 위치를 받아 지도 중심 이동
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          '현재 위치 기능은 추후 연결할 예정입니다.',
-                        ),
+              bottom: _showRoutes ? 230 : 24,
+              child: FloatingActionButton.small(
+                heroTag: 'currentLocationButton',
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.blue,
+                elevation: 4,
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        '현재 위치 기능은 위치 권한 및 GPS 연결 후 '
+                            '구현할 수 있습니다.',
                       ),
-                    );
-                  },
-                  child: const Icon(Icons.my_location),
-                ),
+                    ),
+                  );
+                },
+                child: const Icon(Icons.my_location),
               ),
             ),
 
-            // 4. 목적지 검색 후 표시되는 경로 후보 패널
+            // 하단 주차장 후보 목록
             if (_showRoutes)
               Positioned(
                 left: 0,
@@ -351,186 +557,106 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: SafeArea(
                   top: false,
                   child: Container(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                    decoration: BoxDecoration(
+                    constraints: BoxConstraints(
+                      maxHeight:
+                      MediaQuery.of(context).size.height * 0.42,
+                    ),
+                    padding: const EdgeInsets.fromLTRB(
+                      16,
+                      12,
+                      16,
+                      10,
+                    ),
+                    decoration: const BoxDecoration(
                       color: Colors.white,
-                      borderRadius: const BorderRadius.vertical(
+                      borderRadius: BorderRadius.vertical(
                         top: Radius.circular(24),
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.12),
-                          blurRadius: 18,
-                          offset: const Offset(0, -4),
+                          color: Colors.black12,
+                          blurRadius: 12,
+                          offset: Offset(0, -3),
                         ),
                       ],
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            const Expanded(
+                            Expanded(
                               child: Text(
-                                '주차장 경로 추천',
-                                style: TextStyle(
-                                  fontSize: 19,
+                                _destination.isEmpty
+                                    ? '주변 주차장'
+                                    : '$_destination 주변 경로',
+                                style: const TextStyle(
+                                  fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ),
                             IconButton(
-                              tooltip: '경로 닫기',
+                              tooltip: '목록 접기',
                               onPressed: () {
                                 setState(() {
                                   _showRoutes = false;
-                                  _selectedRoute = null;
                                 });
                               },
-                              icon: const Icon(Icons.close),
+                              icon: const Icon(
+                                Icons.keyboard_arrow_down,
+                              ),
                             ),
                           ],
                         ),
-                        const Text(
-                          '목적지까지의 경로와 주차장 정보를 확인하세요.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
+                        Flexible(
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            padding: EdgeInsets.zero,
+                            itemCount: _routes.length,
+                            itemBuilder: (context, index) {
+                              return _buildRouteCard(
+                                _routes[index],
+                                index,
+                              );
+                            },
                           ),
                         ),
-                        const SizedBox(height: 12),
-
-                        ...List.generate(_routes.length, (index) {
-                          final route = _routes[index];
-                          final selected = _selectedRoute == index;
-
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(14),
-                              onTap: () => _selectRoute(index),
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: selected
-                                      ? const Color(0xFFEFF6FF)
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: selected
-                                        ? const Color(0xFF2563EB)
-                                        : Colors.grey.shade300,
-                                    width: selected ? 1.5 : 1,
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      selected
-                                          ? Icons.radio_button_checked
-                                          : Icons.radio_button_off,
-                                      color: selected
-                                          ? const Color(0xFF2563EB)
-                                          : Colors.grey,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            route.parkingName,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 15,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 5),
-                                          Text(
-                                            '${route.distance} · '
-                                                '${route.duration} · '
-                                                '잔여 ${route.availableSpaces}면',
-                                            style: TextStyle(
-                                              color: Colors.grey.shade700,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    IconButton(
-                                      tooltip: '주차장 상세 정보',
-                                      onPressed: () {
-                                        _showParkingDetails(route);
-                                      },
-                                      icon: const Icon(
-                                        Icons.info_outline,
-                                        color: Color(0xFF2563EB),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        }),
                       ],
+                    ),
+                  ),
+                ),
+              ),
+
+            // 접힌 목록 다시 열기
+            if (!_showRoutes)
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 20,
+                child: SafeArea(
+                  top: false,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _showRoutes = true;
+                      });
+                    },
+                    icon: const Icon(Icons.local_parking),
+                    label: const Text('주변 주차장 보기'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                      ),
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.blue,
+                      elevation: 5,
                     ),
                   ),
                 ),
               ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _ParkingStat extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-  final Color? valueColor;
-
-  const _ParkingStat({
-    required this.title,
-    required this.value,
-    required this.icon,
-    this.valueColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: const Color(0xFF2563EB)),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: valueColor,
-            ),
-          ),
-        ],
       ),
     );
   }

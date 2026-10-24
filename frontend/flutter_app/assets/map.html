@@ -4,25 +4,20 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport"
-          content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+          content="width=device-width, initial-scale=1.0">
 
     <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=6ff5862f3b23c7383d8586db1f0f93c1&autoload=false"></script>
 
     <style>
-        html, body {
+        html, body, #map {
             margin: 0;
             padding: 0;
             width: 100%;
             height: 100%;
-            overflow: hidden;
         }
 
-        #map {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+        body {
+            overflow: hidden;
         }
     </style>
 </head>
@@ -30,47 +25,69 @@
 <div id="map"></div>
 
 <script>
+    let map;
+    let parkingMarkers = [];
+
     function reportStatus(message) {
         console.log("[KakaoMap] " + message);
+    }
 
+    function notifyFlutterParkingClick(parkingId) {
         if (window.flutter_inappwebview) {
             window.flutter_inappwebview.callHandler(
-                "mapStatus",
-                message
+                "parkingMarkerClicked",
+                parkingId
             );
         }
     }
 
-    window.addEventListener("error", function(event) {
-        reportStatus("JavaScript error: " + event.message);
-    });
+    // Flutter에서 주차장 목록을 전달받아 마커 표시
+    window.setParkingLots = function(parkingLots) {
+        if (!map) {
+            reportStatus("Map is not initialized");
+            return;
+        }
 
-    if (typeof kakao === "undefined") {
-        reportStatus("Kakao SDK failed to load");
-    } else {
-        kakao.maps.load(function() {
-            try {
-                var container = document.getElementById("map");
-
-                var options = {
-                    center: new kakao.maps.LatLng(36.6358, 127.4914),
-                    level: 3
-                };
-
-                var map = new kakao.maps.Map(container, options);
-
-                window.parkingMap = map;
-
-                kakao.maps.event.addListener(map, "tilesloaded", function() {
-                    reportStatus("Map tiles loaded");
-                });
-
-                reportStatus("Map initialized");
-            } catch (error) {
-                reportStatus("Map initialization failed: " + error.message);
-            }
+        // 기존 마커 제거
+        parkingMarkers.forEach(function(marker) {
+            marker.setMap(null);
         });
-    }
+        parkingMarkers = [];
+
+        parkingLots.forEach(function(parking) {
+            const position = new kakao.maps.LatLng(
+                parking.latitude,
+                parking.longitude
+            );
+
+            const marker = new kakao.maps.Marker({
+                position: position,
+                map: map,
+                title: parking.name
+            });
+
+            kakao.maps.event.addListener(marker, "click", function() {
+                notifyFlutterParkingClick(parking.id);
+            });
+
+            parkingMarkers.push(marker);
+        });
+
+        reportStatus("Parking markers: " + parkingMarkers.length);
+    };
+
+    kakao.maps.load(function() {
+        const container = document.getElementById("map");
+
+        const options = {
+            center: new kakao.maps.LatLng(36.6358, 127.4914),
+            level: 4
+        };
+
+        map = new kakao.maps.Map(container, options);
+
+        reportStatus("Map initialized");
+    });
 </script>
 </body>
 </html>
