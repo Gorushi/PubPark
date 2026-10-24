@@ -1,8 +1,15 @@
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 void main() {
   runApp(const MyApp());
+}
+
+// assets/map.html 파일 읽기
+Future<String> loadHtml() async {
+  return rootBundle.loadString('assets/map.html');
 }
 
 class MyApp extends StatelessWidget {
@@ -10,7 +17,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return const MaterialApp(
       debugShowCheckedModeBanner: false,
       home: KakaoMapScreen(),
     );
@@ -24,60 +31,30 @@ class KakaoMapScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Test Kakao Map"),
+        title: const Text('Test Kakao Map'),
       ),
-        body: InAppWebView(
-          initialData: InAppWebViewInitialData(
-            data: '''
-                  <!DOCTYPE html>
-                  <html>
-                  <head>
-                  <meta charset="utf-8">
-                  <meta name="viewport"
-                        content="width=device-width, initial-scale=1.0">
-                  
-                  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=6ff5862f3b23c7383d8586db1f0f93c1&autoload=false"></script>
-                  
-                  <style>
-                  html, body {
-                    margin: 0;
-                    padding: 0;
-                    width: 100%;
-                    height: 100%;
-                  }
-                  
-                  #map {
-                    width: 100%;
-                    height: 100%;
-                  }
-                  </style>
-                  </head>
-                  
-                  <body>
-                  
-                  <div id="map"></div>
-                  
-                  <script>
-                  kakao.maps.load(function(){
+      body: FutureBuilder<String>(
+        future: loadHtml(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Text('HTML 로드 실패: ${snapshot.error}'),
+            );
+          }
 
-                      var container = document.getElementById('map');
+          if (!snapshot.hasData) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
 
-                      var options = {
-                          center: new kakao.maps.LatLng(36.6358, 127.4914),
-                          level: 3
-                      };
-
-                      var map = new kakao.maps.Map(container, options);
-
-                  });
-                  </script>
-                                    
-                  </body>
-                  </html>
-                  ''',
-          ),
-
-        )
+          return InAppWebView(
+            initialData: InAppWebViewInitialData(
+              data: snapshot.data!,
+            ),
+          );
+        },
+      ),
     );
   }
 }
