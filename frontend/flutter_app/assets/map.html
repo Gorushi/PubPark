@@ -1,93 +1,290 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
-
-    <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=6ff5862f3b23c7383d8586db1f0f93c1&autoload=false"></script>
-
-    <style>
-        html, body, #map {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-        }
-
-        body {
-            overflow: hidden;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PubPark 지도</title>
+  <style>
+    html, body, #map {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    .info-window {
+      min-width: 140px;
+      padding: 8px 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #222;
+    }
+    .info-window strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 13px;
+    }
+  </style>
+  <!-- 본인의 Kakao Maps JavaScript 키로 교체하세요. -->
+  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=6ff5862f3b23c7383d8586db1f0f93c1&autoload=false"></script>
 </head>
 <body>
 <div id="map"></div>
 
 <script>
-    let map;
-    let parkingMarkers = [];
+  let map = null;
+  let destinationMarker = null;
+  let currentLocationMarker = null;
+  let currentLocation = null;
 
-    function reportStatus(message) {
-        console.log("[KakaoMap] " + message);
-    }
+  let parkingMarkers = [];
+  let parkingInfoWindows = [];
+  let currentParkingData = [];
 
-    function notifyFlutterParkingClick(parkingId) {
-        if (window.flutter_inappwebview) {
-            window.flutter_inappwebview.callHandler(
-                "parkingMarkerClicked",
-                parkingId
-            );
-        }
-    }
+  let carRoutePolyline = null;
+  let walkingRoutePolyline = null;
 
-    // Flutter에서 주차장 목록을 전달받아 마커 표시
-    window.setParkingLots = function(parkingLots) {
-        if (!map) {
-            reportStatus("Map is not initialized");
-            return;
-        }
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
 
-        // 기존 마커 제거
-        parkingMarkers.forEach(function(marker) {
-            marker.setMap(null);
-        });
-        parkingMarkers = [];
-
-        parkingLots.forEach(function(parking) {
-            const position = new kakao.maps.LatLng(
-                parking.latitude,
-                parking.longitude
-            );
-
-            const marker = new kakao.maps.Marker({
-                position: position,
-                map: map,
-                title: parking.name
-            });
-
-            kakao.maps.event.addListener(marker, "click", function() {
-                notifyFlutterParkingClick(parking.id);
-            });
-
-            parkingMarkers.push(marker);
-        });
-
-        reportStatus("Parking markers: " + parkingMarkers.length);
+  function initMap() {
+    const container = document.getElementById('map');
+    const options = {
+      center: new kakao.maps.LatLng(36.6288, 127.4565),
+      level: 5
     };
 
-    kakao.maps.load(function() {
-        const container = document.getElementById("map");
+    map = new kakao.maps.Map(container, options);
 
-        const options = {
-            center: new kakao.maps.LatLng(36.6358, 127.4914),
-            level: 4
-        };
+    if (window.flutter_inappwebview) {
+      window.flutter_inappwebview.callHandler('onMapReady');
+    }
+  }
 
-        map = new kakao.maps.Map(container, options);
+  function clearParkingMarkers() {
+    parkingMarkers.forEach(marker => marker.setMap(null));
+    parkingInfoWindows.forEach(infoWindow => infoWindow.close());
+    parkingMarkers = [];
+    parkingInfoWindows = [];
 
-        reportStatus("Map initialized");
+    if (destinationMarker) {
+      destinationMarker.setMap(null);
+      destinationMarker = null;
+    }
+  }
+
+  window.updateParkingData = function(data) {
+    if (!map || !data) return;
+
+    clearParkingMarkers();
+    currentParkingData = data.parkingLots || [];
+
+    const bounds = new kakao.maps.LatLngBounds();
+    let hasBounds = false;
+
+    if (data.destination) {
+      const destination = data.destination;
+      const position = new kakao.maps.LatLng(
+        Number(destination.latitude),
+        Number(destination.longitude)
+      );
+
+      destinationMarker = new kakao.maps.Marker({
+        map: map,
+        position: position,
+        title: destination.name
+      });
+
+      const destinationInfo = new kakao.maps.InfoWindow({
+        content:
+          '<div class="info-window"><strong>' +
+          escapeHtml(destination.name) +
+          '</strong>' +
+          escapeHtml(destination.address || '목적지') +
+          '</div>'
+      });
+
+      kakao.maps.event.addListener(destinationMarker, 'click', function() {
+        destinationInfo.open(map, destinationMarker);
+      });
+
+      bounds.extend(position);
+      hasBounds = true;
+    }
+
+    currentParkingData.forEach(lot => {
+      const position = new kakao.maps.LatLng(
+        Number(lot.latitude),
+        Number(lot.longitude)
+      );
+
+      const marker = new kakao.maps.Marker({
+        map: map,
+        position: position,
+        title: lot.name
+      });
+
+      const infoWindow = new kakao.maps.InfoWindow({
+        content:
+          '<div class="info-window"><strong>' +
+          escapeHtml(lot.name) +
+          '</strong>' +
+          escapeHtml(lot.address || '') +
+          '<br>잔여 ' + escapeHtml(lot.availableSpaces) +
+          ' / ' + escapeHtml(lot.totalSpaces) + '면' +
+          (lot.distanceText
+            ? '<br>목적지까지 직선거리 ' + escapeHtml(lot.distanceText)
+            : '') +
+          '</div>'
+      });
+
+      kakao.maps.event.addListener(marker, 'click', function() {
+        infoWindow.open(map, marker);
+        if (window.flutter_inappwebview) {
+          window.flutter_inappwebview.callHandler('onParkingLotMarkerTapped', lot.id);
+        }
+      });
+
+      parkingMarkers.push(marker);
+      parkingInfoWindows.push(infoWindow);
+      bounds.extend(position);
+      hasBounds = true;
     });
+
+    if (hasBounds) {
+      map.setBounds(bounds);
+    }
+  };
+
+  window.focusParkingLot = function(parkingLotId) {
+    if (!map) return;
+
+    const index = currentParkingData.findIndex(
+      lot => String(lot.id) === String(parkingLotId)
+    );
+    if (index < 0) return;
+
+    const lot = currentParkingData[index];
+    const position = new kakao.maps.LatLng(
+      Number(lot.latitude),
+      Number(lot.longitude)
+    );
+
+    map.panTo(position);
+
+    if (parkingInfoWindows[index] && parkingMarkers[index]) {
+      parkingInfoWindows[index].open(map, parkingMarkers[index]);
+    }
+  };
+
+  window.moveToCurrentLocation = function(latitude, longitude) {
+    if (!map) return;
+
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    currentLocation = { latitude: lat, longitude: lng };
+    const position = new kakao.maps.LatLng(lat, lng);
+
+    if (!currentLocationMarker) {
+      currentLocationMarker = new kakao.maps.Marker({
+        map: map,
+        position: position,
+        title: '현재 위치'
+      });
+    } else {
+      currentLocationMarker.setPosition(position);
+      currentLocationMarker.setMap(map);
+    }
+
+    map.panTo(position);
+  };
+
+  function updateRouteBounds() {
+    if (!map) return;
+
+    const bounds = new kakao.maps.LatLngBounds();
+    let hasPoints = false;
+
+    [carRoutePolyline, walkingRoutePolyline].forEach(polyline => {
+      if (!polyline) return;
+      const path = polyline.getPath();
+      for (let i = 0; i < path.length; i++) {
+        bounds.extend(path[i]);
+        hasPoints = true;
+      }
+    });
+
+    if (hasPoints) map.setBounds(bounds);
+  }
+
+  window.clearRoutes = function() {
+    if (carRoutePolyline) {
+      carRoutePolyline.setMap(null);
+      carRoutePolyline = null;
+    }
+    if (walkingRoutePolyline) {
+      walkingRoutePolyline.setMap(null);
+      walkingRoutePolyline = null;
+    }
+  };
+
+  window.drawCarRoute = function(path) {
+    if (!map || !Array.isArray(path) || path.length < 2) {
+      console.warn('표시할 자동차 경로가 없습니다.');
+      return;
+    }
+
+    const linePath = path.map(([longitude, latitude]) =>
+      new kakao.maps.LatLng(Number(latitude), Number(longitude))
+    );
+
+    if (carRoutePolyline) carRoutePolyline.setMap(null);
+
+    carRoutePolyline = new kakao.maps.Polyline({
+      map: map,
+      path: linePath,
+      strokeWeight: 5,
+      strokeColor: '#1769FF',
+      strokeOpacity: 0.9,
+      strokeStyle: 'solid'
+    });
+
+    updateRouteBounds();
+  };
+
+  window.drawWalkingRoute = function(path) {
+    if (!map || !Array.isArray(path) || path.length < 2) {
+      console.warn('표시할 도보 경로가 없습니다.');
+      return;
+    }
+
+    const linePath = path.map(([longitude, latitude]) =>
+      new kakao.maps.LatLng(Number(latitude), Number(longitude))
+    );
+
+    if (walkingRoutePolyline) walkingRoutePolyline.setMap(null);
+
+    walkingRoutePolyline = new kakao.maps.Polyline({
+      map: map,
+      path: linePath,
+      strokeWeight: 5,
+      strokeColor: '#16A34A',
+      strokeOpacity: 0.9,
+      strokeStyle: 'solid'
+    });
+
+    updateRouteBounds();
+  };
+
+  kakao.maps.load(initMap);
 </script>
 </body>
 </html>
