@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'models/parking_lot.dart';
+import 'data/mock_parking_data.dart';
 
 void main() {
   runApp(const ParkingApp());
@@ -41,25 +43,7 @@ class DestinationPlace {
   });
 }
 
-class ParkingLot {
-  final String id;
-  final String name;
-  final String address;
-  final double latitude;
-  final double longitude;
-  final int totalSpaces;
-  final int availableSpaces;
 
-  const ParkingLot({
-    required this.id,
-    required this.name,
-    required this.address,
-    required this.latitude,
-    required this.longitude,
-    required this.totalSpaces,
-    required this.availableSpaces,
-  });
-}
 
 class ParkingRouteResult {
   final ParkingLot parkingLot;
@@ -87,7 +71,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   static const String _kakaoRestApiKey =
-      String.fromEnvironment('KAKAO_REST_API_KEY');
+  String.fromEnvironment('KAKAO_REST_API_KEY');
 
   final TextEditingController _searchController = TextEditingController();
 
@@ -106,35 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
   DestinationPlace? _selectedDestination;
   String? _selectedParkingLotId;
 
-  static const List<ParkingLot> _sampleParkingLots = [
-    ParkingLot(
-      id: 'parking_1',
-      name: '제1 주차장 (테스트)',
-      address: '충북대학교 인근 테스트 위치 1',
-      latitude: 36.6288,
-      longitude: 127.4565,
-      totalSpaces: 100,
-      availableSpaces: 23,
-    ),
-    ParkingLot(
-      id: 'parking_2',
-      name: '제2 주차장 (테스트)',
-      address: '충북대학교 인근 테스트 위치 2',
-      latitude: 36.6310,
-      longitude: 127.4590,
-      totalSpaces: 80,
-      availableSpaces: 12,
-    ),
-    ParkingLot(
-      id: 'parking_3',
-      name: '제3 주차장 (테스트)',
-      address: '충북대학교 인근 테스트 위치 3',
-      latitude: 36.6258,
-      longitude: 127.4535,
-      totalSpaces: 150,
-      availableSpaces: 47,
-    ),
-  ];
+
 
   @override
   void dispose() {
@@ -172,9 +128,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<ParkingRouteResult> _calculateRoutes(
-    DestinationPlace destination,
-  ) {
-    final results = _sampleParkingLots.map((lot) {
+      DestinationPlace destination,
+      ) {
+    final results = sampleParkingLots.map((lot) {
       final distance = _calculateDistance(
         startLatitude: lot.latitude,
         startLongitude: lot.longitude,
@@ -307,11 +263,11 @@ class _HomeScreenState extends State<HomeScreen> {
       'destination': destination == null
           ? null
           : {
-              'name': destination.name,
-              'address': destination.address,
-              'latitude': destination.latitude,
-              'longitude': destination.longitude,
-            },
+        'name': destination.name,
+        'address': destination.address,
+        'latitude': destination.latitude,
+        'longitude': destination.longitude,
+      },
       'parkingLots': _routeResults.map((result) {
         final lot = result.parkingLot;
         return {
@@ -608,15 +564,15 @@ class _HomeScreenState extends State<HomeScreen> {
           title: Text(lot.name),
           subtitle: Text(
             '직선거리 ${result.distanceText}\n'
-            '잔여 ${lot.availableSpaces} / ${lot.totalSpaces}면',
+                '잔여 ${lot.availableSpaces} / ${lot.totalSpaces}면',
           ),
           isThreeLine: true,
           trailing: _isLoadingSelectedRoute && selected
               ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
               : const Icon(Icons.chevron_right),
           onTap: () => _selectParkingLot(lot),
         );
