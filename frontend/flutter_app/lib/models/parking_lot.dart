@@ -26,7 +26,8 @@ class ParkingLot {
   };
 
   @override
-  String toString() => 'ParkingLot(id: $id, name: $name, availableSpaces: $availableSpaces)';
+  String toString() =>
+      'ParkingLot(id: $id, name: $name, availableSpaces: $availableSpaces)';
 
   ParkingLot copyWith({String? id, String? name, int? availableSpaces}) {
     return ParkingLot(
@@ -35,6 +36,7 @@ class ParkingLot {
       availableSpaces: availableSpaces ?? this.availableSpaces,
     );
   }
+
   @override
   bool operator ==(Object other) => other is ParkingLot && other.id == id;
 

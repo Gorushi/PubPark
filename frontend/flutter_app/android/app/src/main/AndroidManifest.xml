@@ -7,10 +7,6 @@
         android:usesCleartextTraffic="true"
         android:icon="@mipmap/ic_launcher">
 
-        <meta-data
-            android:name="com.kakao.sdk.AppKey"
-            android:value="2a57d599597305fd05430b9fb5507696"/>
-
         <activity
             android:name=".MainActivity"
             android:exported="true"

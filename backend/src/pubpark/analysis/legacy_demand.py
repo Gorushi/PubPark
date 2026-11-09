@@ -1,3 +1,4 @@
+"""Legacy experiment: requires per-parking-lot time series, not the latest cache."""
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -5,7 +6,9 @@ from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 from statsmodels.tsa.stattools import adfuller
 
-CACHE_FILE = 'parking_cache.json'
+from pubpark.config import data_dir
+
+CACHE_FILE = data_dir() / 'parking_cache.json'
 
 def analyze_parking_demand():
     print("[시계열 분석] 파이프라인 가동")
@@ -20,6 +23,10 @@ def analyze_parking_demand():
         print("유효 분석 데이터 부족으로 프로세스 강제 종료")
         return
         
+    if 'timestamp' not in df.columns:
+        print('timestamp 이력이 필요합니다. 최신 스냅샷으로는 분석할 수 없습니다.')
+        return
+
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df.set_index('timestamp', inplace=True)
     df.sort_index(inplace=True)
@@ -72,4 +79,9 @@ def analyze_parking_demand():
     plt.savefig('parking_demand_result.png')
     print("[분석 결과] 시각화 이미지 출력 파일 저장 완료")
 
-analyze_parking_demand()
+def main():
+    analyze_parking_demand()
+
+
+if __name__ == "__main__":
+    main()

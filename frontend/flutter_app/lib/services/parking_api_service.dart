@@ -1,11 +1,24 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:http/http.dart' as http;
+
 import '../models/parking_lot.dart';
+import '../config/app_config.dart';
 
 class ParkingApiService {
-  static const String _baseUrl = 'https://api.example.com';
+  final String _baseUrl;
+
+  ParkingApiService({String baseUrl = AppConfig.apiBaseUrl})
+    : _baseUrl = baseUrl {
+    final uri = Uri.tryParse(baseUrl);
+    if (uri == null ||
+        !uri.hasAuthority ||
+        !['http', 'https'].contains(uri.scheme)) {
+      throw ArgumentError('API_BASE_URL에 유효한 서버 주소를 설정하세요.');
+    }
+  }
   static const Duration _timeout = Duration(seconds: 10);
 
   /// 주차장 목록 조회 (GET /api/parking-lots)
@@ -16,11 +29,11 @@ class ParkingApiService {
       final response = await http
           .get(url, headers: {'Content-Type': 'application/json'})
           .timeout(
-        _timeout,
-        onTimeout: () {
-          throw TimeoutException('서버 응답 시간 초과');
-        },
-      );
+            _timeout,
+            onTimeout: () {
+              throw TimeoutException('서버 응답 시간 초과');
+            },
+          );
 
       if (response.statusCode == 200) {
         final List<dynamic> jsonList = jsonDecode(response.body);
@@ -51,13 +64,17 @@ class ParkingApiService {
     try {
       final response = await http
           .get(url, headers: {'Content-Type': 'application/json'})
-          .timeout(_timeout, onTimeout: () {
-        throw TimeoutException('서버 응답 시간 초과');
-      });
+          .timeout(
+            _timeout,
+            onTimeout: () {
+              throw TimeoutException('서버 응답 시간 초과');
+            },
+          );
 
       if (response.statusCode == 200) {
         return ParkingLot.fromJson(
-            jsonDecode(response.body) as Map<String, dynamic>);
+          jsonDecode(response.body) as Map<String, dynamic>,
+        );
       } else if (response.statusCode == 401) {
         throw Exception('인증 실패: 토큰을 확인해주세요.');
       } else if (response.statusCode == 404) {
