@@ -6,8 +6,13 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) => const MaterialApp(
+  Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
-    home: SplashScreen(),
+    theme: ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF087F6B)),
+      scaffoldBackgroundColor: const Color(0xFFF8FAFB),
+    ),
+    home: const SplashScreen(),
   );
 }

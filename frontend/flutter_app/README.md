@@ -1,17 +1,12 @@
-# flutter_app
+# PubPark Flutter 앱
 
-A new Flutter project.
+네이버 Mobile Dynamic Map SDK 기반 Android/iOS 주차장 검색 화면입니다. 검색·경로·주차 현황·드래그 바텀시트를 제공합니다.
 
-## Getting Started
+설치·Client ID 설정·실행·테스트는 [루트 README](../../README.md#앱-실행)를 참고하세요.
 
-This project is a starting point for a Flutter application.
+- lib/screens/naver_map_screen.dart: 네이버 지도와 설정·인증 오류 안내
+- lib/services/naver_map_initializer.dart: 네이티브 SDK 초기화
+- lib/config/app_config.dart: dart-define 설정
+- test/: 스플래시 이동과 지도 오류 처리 테스트
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+기본 샘플 모드와 실제 Geocoding·Directions5·서울시 데이터 연동의 실행 방법은 [화면 안내](../../docs/mobile-parking-ui.md)를 참고하세요.

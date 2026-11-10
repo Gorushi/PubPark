@@ -12,7 +12,7 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 2500));
     await tester.pumpAndSettle();
-    expect(find.text('KAKAO_JAVASCRIPT_KEY 설정이 필요합니다.'), findsOneWidget);
+    expect(find.text('NAVER_MAPS_CLIENT_ID 설정이 필요합니다.'), findsOneWidget);
   });
 
   testWidgets('Removing splash cancels its timer', (tester) async {

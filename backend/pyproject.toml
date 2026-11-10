@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "pubpark-backend"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["requests>=2.31,<3"]
+dependencies = ["requests>=2.31,<3", "python-dotenv>=1,<2"]
 
 [project.optional-dependencies]
 analysis = ["pandas>=2,<3", "numpy>=1.26,<3", "matplotlib>=3.8,<4", "scikit-learn>=1.4,<2", "statsmodels>=0.14,<1"]
@@ -14,6 +14,7 @@ analysis = ["pandas>=2,<3", "numpy>=1.26,<3", "matplotlib>=3.8,<4", "scikit-lear
 [project.scripts]
 pubpark-collect = "pubpark.collectors.public_data:main"
 pubpark-check-api = "pubpark.collectors.public_data:check_api"
+pubpark-refresh-seoul-static = "pubpark.collectors.seoul_static:main"
 pubpark-legacy-analysis = "pubpark.analysis.legacy_demand:main"
 
 [tool.setuptools.packages.find]

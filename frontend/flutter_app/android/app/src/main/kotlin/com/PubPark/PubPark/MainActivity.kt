@@ -1,4 +1,4 @@
-package com.example.flutter_app
+package com.PubPark.PubPark
 
 import io.flutter.embedding.android.FlutterActivity
 
