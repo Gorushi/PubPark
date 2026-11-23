@@ -1,19 +1,25 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'screens/home_screen.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const ParkingApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class ParkingApp extends StatelessWidget {
+  const ParkingApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: '주차장 찾기',
       debugShowCheckedModeBanner: false,
-      home:
-          const SplashScreen(), // 수정사항. 처음에 SplashScreen이 보이고, 이후에 KakaoMapScreen으로 이동하도록 변경
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        useMaterial3: true,
+      ),
+      home: const SplashScreen(),
     );
   }
 }
@@ -26,17 +32,23 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  late final Timer _timer;
+
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 2500), () {
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const KakaoMapScreen()),
-        );
-      }
+    _timer = Timer(const Duration(milliseconds: 2500), () {
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
+      );
     });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
   }
 
   @override
@@ -51,68 +63,6 @@ class _SplashScreenState extends State<SplashScreen> {
             const SizedBox(height: 40),
             const CircularProgressIndicator(color: Colors.white),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class KakaoMapScreen extends StatelessWidget {
-  const KakaoMapScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Test Kakao Map")),
-      body: InAppWebView(
-        initialData: InAppWebViewInitialData(
-          data: '''
-                  <!DOCTYPE html>
-                  <html>
-                  <head>
-                  <meta charset="utf-8">
-                  <meta name="viewport"
-                        content="width=device-width, initial-scale=1.0">
-                  
-                  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=6ff5862f3b23c7383d8586db1f0f93c1&autoload=false"></script>
-                  
-                  <style>
-                  html, body {
-                    margin: 0;
-                    padding: 0;
-                    width: 100%;
-                    height: 100%;
-                  }
-                  
-                  #map {
-                    width: 100%;
-                    height: 100%;
-                  }
-                  </style>
-                  </head>
-                  
-                  <body>
-                  
-                  <div id="map"></div>
-                  
-                  <script>
-                  kakao.maps.load(function(){
-
-                      var container = document.getElementById('map');
-
-                      var options = {
-                          center: new kakao.maps.LatLng(36.6358, 127.4914),
-                          level: 3
-                      };
-
-                      var map = new kakao.maps.Map(container, options);
-
-                  });
-                  </script>
-                                    
-                  </body>
-                  </html>
-                  ''',
         ),
       ),
     );
