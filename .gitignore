@@ -69,6 +69,7 @@ app.*.map.json
 backend/api_key_priv.py
 backend/parking_cache.json
 
+backend/.env
 # Flutter generated plugin registrants
 **/GeneratedPluginRegistrant.swift
 **/generated_plugin_registrant.cc
