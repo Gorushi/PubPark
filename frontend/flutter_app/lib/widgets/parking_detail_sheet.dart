@@ -105,7 +105,7 @@ class ParkingDetailSheet extends StatelessWidget {
             const Padding(
               padding: EdgeInsets.fromLTRB(12, 4, 12, 10),
               child: Text(
-                '테스트용 가상 주차장 데이터 · 후보 정렬은 직선거리 기준',
+                '서울시 공공 데이터 · 후보 정렬은 직선거리 기준',
                 style: TextStyle(fontSize: 11, color: Colors.grey),
               ),
             ),

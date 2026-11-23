@@ -1,11 +1,22 @@
 import 'dart:math' as math;
 import 'package:geolocator/geolocator.dart';
 import '../models/destination_place.dart';
-import '../models/parking_lot.dart';
 import '../models/parking_route.dart';
-import '../data/mock_parking_data.dart';
+import 'parking_api_service.dart';
 
 class ParkingRouteService {
+  final ParkingApiService _apiService;
+
+  ParkingRouteService({ParkingApiService? apiService})
+      : _apiService = apiService ?? ParkingApiService();
+
+  /// 백엔드 API를 통해 목적지 주변 실시간 주차장 조회
+  Future<List<ParkingRouteResult>> fetchRoutes(
+    DestinationPlace destination,
+  ) async {
+    return await _apiService.fetchNearbyParkingLots(destination);
+  }
+
   static double calculateDistance({
     required double startLatitude,
     required double startLongitude,
@@ -33,29 +44,6 @@ class ParkingRouteService {
         );
 
     return earthRadius * c;
-  }
-
-  static List<ParkingRouteResult> calculateRoutes(
-    DestinationPlace destination, {
-    List<ParkingLot>? parkingLots,
-  }) {
-    final targetLots = parkingLots ?? sampleParkingLots;
-    final results = targetLots.map((lot) {
-      final distance = calculateDistance(
-        startLatitude: lot.latitude,
-        startLongitude: lot.longitude,
-        endLatitude: destination.latitude,
-        endLongitude: destination.longitude,
-      );
-
-      return ParkingRouteResult(
-        parkingLot: lot,
-        distanceMeters: distance,
-      );
-    }).toList();
-
-    results.sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
-    return results;
   }
 
   static Future<Position> getCurrentPosition() async {

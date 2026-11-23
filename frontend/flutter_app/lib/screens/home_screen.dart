@@ -36,6 +36,8 @@ class _HomeScreenState extends State<HomeScreen> {
   DestinationPlace? _selectedDestination;
   String? _selectedParkingLotId;
 
+  final ParkingRouteService _parkingRouteService = ParkingRouteService();
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -89,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _selectDestination(DestinationPlace place) {
+  Future<void> _selectDestination(DestinationPlace place) async {
     FocusScope.of(context).unfocus();
 
     setState(() {
@@ -103,13 +105,24 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectedParkingLotId = null;
     });
 
-    final results = ParkingRouteService.calculateRoutes(place);
-    if (!mounted) return;
+    try {
+      final results = await _parkingRouteService.fetchRoutes(place);
+      if (!mounted) return;
 
-    setState(() {
-      _routeResults = results;
-      _isLoadingRoutes = false;
-    });
+      setState(() {
+        _routeResults = results;
+        _isLoadingRoutes = false;
+        if (results.isEmpty) {
+          _routeError = '주변에 검색된 주차장이 없습니다.';
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingRoutes = false;
+        _routeError = '주차장 정보를 불러오지 못했습니다.\n(백엔드 서버 상태 및 연결을 확인해주세요)';
+      });
+    }
 
     _updateMap();
   }
