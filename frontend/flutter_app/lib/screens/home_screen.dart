@@ -21,7 +21,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final TextEditingController _searchController = TextEditingController();
 
+  final GlobalKey _parkingSheetKey = GlobalKey();
   InAppWebViewController? _webViewController;
+  SortOption _sortOption = SortOption.availability;
+  int _routeRequest = 0;
+  bool _parkingListExpanded = false;
+  bool _showWalkingOnly = false;
+  DateTime? _destinationArrival;
+  int? _arrivalAvailability;
 
   bool _mapReady = false;
   bool _isSearching = false;
@@ -95,6 +102,12 @@ class _HomeScreenState extends State<HomeScreen> {
     FocusScope.of(context).unfocus();
 
     setState(() {
+      _routeRequest++;
+      _parkingListExpanded = false;
+      _showWalkingOnly = false;
+      _isLoadingSelectedRoute = false;
+      _destinationArrival = null;
+      _arrivalAvailability = null;
       _selectedDestination = place;
       _searchController.text = place.name;
       _searchResults = [];
@@ -105,19 +118,20 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectedParkingLotId = null;
     });
 
+    _updateMap();
     try {
       final results = await _parkingRouteService.fetchRoutes(place);
-      if (!mounted) return;
+      if (!mounted || _selectedDestination != place) return;
 
       setState(() {
-        _routeResults = results;
+        _routeResults = ParkingRouteService.sortResults(results, _sortOption);
         _isLoadingRoutes = false;
         if (results.isEmpty) {
           _routeError = '주변에 검색된 주차장이 없습니다.';
         }
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || _selectedDestination != place) return;
       setState(() {
         _isLoadingRoutes = false;
         _routeError = '주차장 정보를 불러오지 못했습니다.\n(백엔드 서버 상태 및 연결을 확인해주세요)';
@@ -161,87 +175,108 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _drawCarRouteToParkingLot(ParkingLot lot) async {
-    if (_kakaoRestApiKey.isEmpty) {
-      throw Exception('KAKAO_REST_API_KEY가 설정되지 않았습니다.');
-    }
-
-    final position = await ParkingRouteService.getCurrentPosition();
-    final path = await KakaoSearchService.fetchCarRoutePath(
-      apiKey: _kakaoRestApiKey,
-      startLongitude: position.longitude,
-      startLatitude: position.latitude,
-      endLongitude: lot.longitude,
-      endLatitude: lot.latitude,
-    );
-
-    final controller = _webViewController;
-    if (controller == null || !_mapReady) {
-      throw Exception('지도가 아직 준비되지 않았습니다.');
-    }
-
-    await controller.evaluateJavascript(
-      source: 'window.drawCarRoute(${jsonEncode(path)});',
-    );
-  }
-
-  Future<void> _drawWalkingRoute(ParkingLot lot) async {
-    final destination = _selectedDestination;
-    if (destination == null) {
-      throw Exception('먼저 최종 목적지를 검색해 주세요.');
-    }
-    if (_kakaoRestApiKey.isEmpty) {
-      throw Exception('KAKAO_REST_API_KEY가 설정되지 않았습니다.');
-    }
-
-    final path = await KakaoSearchService.fetchWalkRoutePath(
-      apiKey: _kakaoRestApiKey,
-      lot: lot,
-      destination: destination,
-    );
-
-    final controller = _webViewController;
-    if (controller == null || !_mapReady) {
-      throw Exception('지도가 아직 준비되지 않았습니다.');
-    }
-
-    await controller.evaluateJavascript(
-      source: 'window.drawWalkingRoute(${jsonEncode(path)});',
-    );
-  }
-
   Future<void> _selectParkingLot(ParkingLot lot) async {
     final controller = _webViewController;
-    if (controller == null || !_mapReady) return;
+    final destination = _selectedDestination;
+    if (controller == null || !_mapReady || destination == null) return;
 
+    final request = ++_routeRequest;
+    bool isCurrent() => mounted && request == _routeRequest;
     setState(() {
       _selectedParkingLotId = lot.id;
+      _parkingListExpanded = false;
+      _showWalkingOnly = false;
       _isLoadingSelectedRoute = true;
+      _destinationArrival = null;
+      _arrivalAvailability = null;
       _routeError = null;
     });
 
-    try {
-      await controller.evaluateJavascript(
-        source: 'window.focusParkingLot(${jsonEncode(lot.id)});',
-      );
+    await controller.evaluateJavascript(
+      source: 'window.clearRoutes(); window.focusParkingLot(${jsonEncode(lot.id)});',
+    );
+    if (!isCurrent()) return;
 
-      await controller.evaluateJavascript(
-        source: 'window.clearRoutes();',
-      );
+    int? driveSeconds;
+    int? walkSeconds;
+    final failedLegs = <String>[];
 
-      await _drawCarRouteToParkingLot(lot);
-      await _drawWalkingRoute(lot);
-    } catch (e) {
-      debugPrint('경로 표시 실패: $e');
-      if (mounted) {
-        setState(() => _routeError = e.toString());
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('경로 표시 실패: $e')),
-        );
+    await Future.wait([
+      () async {
+        try {
+          final position = await ParkingRouteService.getCurrentPosition()
+              .timeout(const Duration(seconds: 15));
+          if (!isCurrent()) return;
+          final route = await KakaoSearchService.fetchCarRoutePath(
+            apiKey: _kakaoRestApiKey,
+            startLongitude: position.longitude,
+            startLatitude: position.latitude,
+            endLongitude: lot.longitude,
+            endLatitude: lot.latitude,
+          ).timeout(const Duration(seconds: 10));
+          if (!isCurrent()) return;
+          driveSeconds = route.seconds;
+          await controller.evaluateJavascript(
+            source: 'window.drawCarRoute(${jsonEncode(route.path)});',
+          );
+        } catch (_) {
+          failedLegs.add('자동차');
+        }
+      }(),
+      () async {
+        try {
+          final route = await KakaoSearchService.fetchWalkRoutePath(
+            apiKey: _kakaoRestApiKey,
+            lot: lot,
+            destination: destination,
+          ).timeout(const Duration(seconds: 10));
+          if (!isCurrent()) return;
+          walkSeconds = route.seconds;
+          await controller.evaluateJavascript(
+            source: 'window.drawWalkingRoute(${jsonEncode(route.path)});',
+          );
+          if (!isCurrent()) return;
+          await _fitSelectedRoute(controller);
+        } catch (_) {
+          failedLegs.add('도보');
+        }
+      }(),
+    ]);
+    if (!mounted || request != _routeRequest) return;
+
+    final drive = driveSeconds;
+    final walk = walkSeconds;
+    final now = DateTime.now();
+    final arrival = drive == null || walk == null || drive < 0 || walk < 0
+        ? null
+        : now.add(Duration(seconds: drive + walk));
+    final observedAt = lot.sourceUpdatedAt;
+    final observationLead = arrival == null || observedAt == null
+        ? null
+        : arrival.difference(observedAt);
+    setState(() {
+      _isLoadingSelectedRoute = false;
+      _destinationArrival = arrival;
+      if (observationLead != null &&
+          !observationLead.isNegative &&
+          observationLead <= const Duration(minutes: 30)) {
+        _arrivalAvailability = lot.availableSpaces;
       }
-    } finally {
-      if (mounted) setState(() => _isLoadingSelectedRoute = false);
+    });
+    if (failedLegs.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${failedLegs.join('·')} 경로를 불러오지 못했습니다.')),
+      );
     }
+    await WidgetsBinding.instance.endOfFrame;
+    if (isCurrent()) await _fitSelectedRoute(controller);
+  }
+
+  Future<void> _fitSelectedRoute(InAppWebViewController controller) async {
+    final sheetHeight = _parkingSheetKey.currentContext?.size?.height ?? 0;
+    await controller.evaluateJavascript(
+      source: 'window.fitSelectedRoute(${sheetHeight.ceil() + 28}, $_showWalkingOnly);',
+    );
   }
 
   @override
@@ -260,6 +295,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 onWebViewCreated: (controller) {
                   _webViewController = controller;
+                  controller.addJavaScriptHandler(
+                    handlerName: 'onParkingLotMarkerTapped',
+                    callback: (args) {
+                      if (args.isEmpty) return;
+                      for (final result in _routeResults) {
+                        if (result.parkingLot.id == args.first.toString()) {
+                          _selectParkingLot(result.parkingLot);
+                          break;
+                        }
+                      }
+                    },
+                  );
                   controller.addJavaScriptHandler(
                     handlerName: 'onMapReady',
                     callback: (args) {
@@ -293,6 +340,30 @@ class _HomeScreenState extends State<HomeScreen> {
               right: 12,
               bottom: 12,
               child: ParkingDetailSheet(
+                key: _parkingSheetKey,
+                isExpanded: _parkingListExpanded,
+                maxHeight: MediaQuery.sizeOf(context).height * 0.64,
+                showWalkingOnly: _showWalkingOnly,
+                onExpandChanged: (expanded) async {
+                  setState(() => _parkingListExpanded = expanded);
+                  await WidgetsBinding.instance.endOfFrame;
+                  final controller = _webViewController;
+                  if (mounted && controller != null && _selectedParkingLotId != null) {
+                    await _fitSelectedRoute(controller);
+                  }
+                },
+                onRouteViewChanged: (walkingOnly) {
+                  setState(() => _showWalkingOnly = walkingOnly);
+                  final controller = _webViewController;
+                  if (controller != null) _fitSelectedRoute(controller);
+                },
+                sortOption: _sortOption,
+                destinationArrival: _destinationArrival,
+                arrivalAvailability: _arrivalAvailability,
+                onSortChanged: (option) => setState(() {
+                  _sortOption = option;
+                  _routeResults = ParkingRouteService.sortResults(_routeResults, option);
+                }),
                 selectedDestination: _selectedDestination,
                 routeResults: _routeResults,
                 selectedParkingLotId: _selectedParkingLotId,
@@ -302,9 +373,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 onSelectParkingLot: _selectParkingLot,
               ),
             ),
+            if (_selectedParkingLotId == null)
             Positioned(
               right: 16,
-              bottom: 200,
+              top: 76,
               child: FloatingActionButton.extended(
                 heroTag: 'currentLocation',
                 onPressed: () async {

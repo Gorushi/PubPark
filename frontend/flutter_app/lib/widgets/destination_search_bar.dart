@@ -87,7 +87,7 @@ class DestinationSearchBar extends StatelessWidget {
                     textInputAction: TextInputAction.search,
                     onSubmitted: (_) => onSearch(),
                     decoration: const InputDecoration(
-                      hintText: '목적지를 검색하세요',
+                      hintText: '가게 상호명이나 장소 이름을 검색하세요',
                       border: InputBorder.none,
                     ),
                   ),

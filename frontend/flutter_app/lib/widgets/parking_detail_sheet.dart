@@ -2,10 +2,20 @@ import 'package:flutter/material.dart';
 import '../models/destination_place.dart';
 import '../models/parking_lot.dart';
 import '../models/parking_route.dart';
+import '../services/parking_route_service.dart';
 import 'route_option_card.dart';
 
 class ParkingDetailSheet extends StatelessWidget {
   final DestinationPlace? selectedDestination;
+  final bool isExpanded;
+  final double maxHeight;
+  final bool showWalkingOnly;
+  final ValueChanged<bool> onExpandChanged;
+  final ValueChanged<bool> onRouteViewChanged;
+  final SortOption sortOption;
+  final ValueChanged<SortOption> onSortChanged;
+  final DateTime? destinationArrival;
+  final int? arrivalAvailability;
   final List<ParkingRouteResult> routeResults;
   final String? selectedParkingLotId;
   final bool isLoadingRoutes;
@@ -16,6 +26,15 @@ class ParkingDetailSheet extends StatelessWidget {
   const ParkingDetailSheet({
     super.key,
     required this.selectedDestination,
+    required this.isExpanded,
+    required this.maxHeight,
+    required this.showWalkingOnly,
+    required this.onExpandChanged,
+    required this.onRouteViewChanged,
+    required this.sortOption,
+    required this.onSortChanged,
+    required this.destinationArrival,
+    required this.arrivalAvailability,
     required this.routeResults,
     required this.selectedParkingLotId,
     required this.isLoadingRoutes,
@@ -40,7 +59,9 @@ class ParkingDetailSheet extends StatelessWidget {
     }
 
     return ListView.separated(
+      primary: false,
       shrinkWrap: true,
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: routeResults.length,
       separatorBuilder: (_, index) => const Divider(height: 1),
       itemBuilder: (context, index) {
@@ -61,33 +82,93 @@ class ParkingDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    String? selectedParkingName;
+    for (final result in routeResults) {
+      if (result.parkingLot.id == selectedParkingLotId) {
+        selectedParkingName = result.parkingLot.name;
+        break;
+      }
+    }
+    final compactSelection = isExpanded ? null : selectedParkingName;
+    final showList = compactSelection == null;
+    final canExpand = routeResults.isNotEmpty;
+    final arrival = destinationArrival;
+    final arrivalTime = arrival == null
+        ? null
+        : MaterialLocalizations.of(context).formatTimeOfDay(
+            TimeOfDay.fromDateTime(arrival),
+          );
+    final prediction = arrivalAvailability == null
+        ? '여유 추정 불가'
+        : '여유 약 $arrivalAvailability면\n최근 관측값 유지 가정';
     return Material(
       elevation: 6,
       borderRadius: BorderRadius.circular(18),
       clipBehavior: Clip.antiAlias,
       child: Container(
-        constraints: const BoxConstraints(maxHeight: 320),
+        constraints: BoxConstraints(
+          maxHeight: isExpanded ? maxHeight : maxHeight.clamp(0.0, 320.0).toDouble(),
+        ),
         color: Theme.of(context).colorScheme.surface,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (canExpand)
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onVerticalDragEnd: (details) {
+                  final velocity = details.primaryVelocity ?? 0;
+                  if (velocity != 0) onExpandChanged(velocity < 0);
+                },
+                onTap: () => onExpandChanged(!isExpanded),
+                child: SizedBox(
+                  height: 20,
+                  width: double.infinity,
+                  child: Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      '주변 주차장',
-                      style: TextStyle(
+                      compactSelection ?? (canExpand ? '주변 주차장 ${routeResults.length}곳' : '주변 주차장'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                  if (selectedDestination != null)
-                    Text(
-                      '${routeResults.length}곳',
-                      style: const TextStyle(color: Colors.grey),
+                  if (canExpand)
+                    TextButton(
+                      onPressed: () => onExpandChanged(!isExpanded),
+                      child: Text(isExpanded ? '접기' : '목록 더 보기'),
+                    ),
+                  if (showList && selectedDestination != null)
+                    PopupMenuButton<SortOption>(
+                      tooltip: '주차장 정렬',
+                      initialValue: sortOption,
+                      onSelected: onSortChanged,
+                      itemBuilder: (context) => [
+                        for (final option in SortOption.values)
+                          PopupMenuItem(value: option, child: Text(option.label)),
+                      ],
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Text('${sortOption.label} ▾'),
+                      ),
                     ),
                 ],
               ),
@@ -101,12 +182,47 @@ class ParkingDetailSheet extends StatelessWidget {
                   style: const TextStyle(color: Colors.red),
                 ),
               ),
-            Flexible(child: _buildParkingRouteList()),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(12, 4, 12, 10),
+            if (!showList)
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                  child: Column(
+                    children: [
+                      Text(
+                        isLoadingSelectedRoute
+                            ? '경로를 불러오는 중…'
+                            : arrivalTime == null
+                                ? '목적지 도착 시 여유 추정 불가'
+                                : '목적지 도착 예상 $arrivalTime · $prediction',
+                        textAlign: TextAlign.center,
+                      ),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          ChoiceChip(
+                            label: const Text('전체 경로'),
+                            selected: !showWalkingOnly,
+                            onSelected: (_) => onRouteViewChanged(false),
+                          ),
+                          ChoiceChip(
+                            label: const Text('도보 구간'),
+                            selected: showWalkingOnly,
+                            onSelected: (_) => onRouteViewChanged(true),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (showList) Flexible(child: _buildParkingRouteList()),
+            if (showList) Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
               child: Text(
-                '서울시 공공 데이터 · 후보 정렬은 직선거리 기준',
-                style: TextStyle(fontSize: 11, color: Colors.grey),
+                sortOption == SortOption.optimal
+                    ? '최적순은 현재 여유 대수와 직선거리를 함께 반영합니다.'
+                    : '서울시 공공 데이터 · 목적지 주변 주차장',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
               ),
             ),
           ],

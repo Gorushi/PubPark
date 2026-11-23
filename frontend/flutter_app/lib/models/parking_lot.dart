@@ -5,7 +5,8 @@ class ParkingLot {
   final double latitude;
   final double longitude;
   final int totalSpaces;
-  final int availableSpaces;
+  final int? availableSpaces;
+  final DateTime? sourceUpdatedAt;
   final String destinationName;
   final bool isMockAvailability;
 
@@ -17,6 +18,7 @@ class ParkingLot {
     required this.longitude,
     required this.totalSpaces,
     required this.availableSpaces,
+    this.sourceUpdatedAt,
     this.destinationName = '',
     this.isMockAvailability = true,
   });
@@ -29,7 +31,8 @@ class ParkingLot {
       latitude: (json['latitude'] as num?)?.toDouble() ?? 0.0,
       longitude: (json['longitude'] as num?)?.toDouble() ?? 0.0,
       totalSpaces: (json['total_spaces'] as num?)?.toInt() ?? (json['totalSpaces'] as num?)?.toInt() ?? 0,
-      availableSpaces: (json['available_spaces'] as num?)?.toInt() ?? (json['availableSpaces'] as num?)?.toInt() ?? 0,
+      availableSpaces: (json['available_spaces'] as num?)?.toInt() ?? (json['availableSpaces'] as num?)?.toInt(),
+      sourceUpdatedAt: DateTime.tryParse(json['source_updated_at']?.toString() ?? ''),
       destinationName: destinationName,
       isMockAvailability: json['status'] == null || json['status'] == 'unlinked',
     );
@@ -43,12 +46,14 @@ class ParkingLot {
         'longitude': longitude,
         'total_spaces': totalSpaces,
         'available_spaces': availableSpaces,
+        'source_updated_at': sourceUpdatedAt?.toIso8601String(),
         'destinationName': destinationName,
         'isMockAvailability': isMockAvailability,
       };
 
   double get occupancyRate {
-    if (totalSpaces <= 0) return 0;
-    return (totalSpaces - availableSpaces) / totalSpaces;
+    final available = availableSpaces;
+    if (totalSpaces <= 0 || available == null) return 0;
+    return (totalSpaces - available) / totalSpaces;
   }
 }

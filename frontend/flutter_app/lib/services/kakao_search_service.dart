@@ -29,7 +29,7 @@ class KakaoSearchService {
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     final documents = data['documents'] as List<dynamic>;
 
-    return documents.map((item) {
+    final places = documents.map((item) {
       final place = item as Map<String, dynamic>;
       final roadAddress = (place['road_address_name'] as String?)?.trim();
       final address = roadAddress != null && roadAddress.isNotEmpty
@@ -43,9 +43,21 @@ class KakaoSearchService {
         latitude: double.parse(place['y'].toString()),
       );
     }).toList();
+
+    String normalize(String value) => value.toLowerCase().replaceAll(RegExp(r'\s+'), '');
+    final keyword = normalize(query);
+    int rank(DestinationPlace place) {
+      final name = normalize(place.name);
+      if (name == keyword) return 0;
+      if (name.contains(keyword)) return 1;
+      return 2;
+    }
+
+    return [for (var priority = 0; priority < 3; priority++)
+      ...places.where((place) => rank(place) == priority)];
   }
 
-  static Future<List<List<double>>> fetchCarRoutePath({
+  static Future<({List<List<double>> path, int? seconds})> fetchCarRoutePath({
     required String apiKey,
     required double startLongitude,
     required double startLatitude,
@@ -107,10 +119,10 @@ class KakaoSearchService {
     final summary = route['summary'] as Map<String, dynamic>;
     debugPrint('자동차 경로 표시 성공: 거리 ${summary['distance']}m, 시간 ${summary['duration']}초');
 
-    return path;
+    return (path: path, seconds: (summary['duration'] as num?)?.toInt());
   }
 
-  static Future<List<List<double>>> fetchWalkRoutePath({
+  static Future<({List<List<double>> path, int? seconds})> fetchWalkRoutePath({
     required String apiKey,
     required ParkingLot lot,
     required DestinationPlace destination,
@@ -170,6 +182,6 @@ class KakaoSearchService {
       debugPrint('도보 경로 표시 성공: 거리 ${properties['totalDistance']}m, 시간 ${properties['totalTime']}초');
     }
 
-    return path;
+    return (path: path, seconds: (properties?['totalTime'] as num?)?.toInt());
   }
 }

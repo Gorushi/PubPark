@@ -40,6 +40,7 @@
   let parkingMarkers = [];
   let parkingInfoWindows = [];
   let currentParkingData = [];
+  let selectedParkingMarker = null;
 
   let carRoutePolyline = null;
   let walkingRoutePolyline = null;
@@ -70,6 +71,7 @@
   function clearParkingMarkers() {
     parkingMarkers.forEach(marker => marker.setMap(null));
     parkingInfoWindows.forEach(infoWindow => infoWindow.close());
+    selectedParkingMarker = null;
     parkingMarkers = [];
     parkingInfoWindows = [];
 
@@ -82,6 +84,7 @@
   window.updateParkingData = function(data) {
     if (!map || !data) return;
 
+    window.clearRoutes();
     clearParkingMarkers();
     currentParkingData = data.parkingLots || [];
 
@@ -136,8 +139,10 @@
           escapeHtml(lot.name) +
           '</strong>' +
           escapeHtml(lot.address || '') +
-          '<br>잔여 ' + escapeHtml(lot.availableSpaces) +
-          ' / ' + escapeHtml(lot.totalSpaces) + '면' +
+          (lot.availableSpaces == null
+            ? '<br>현황 확인 불가'
+            : '<br>현재 잔여 ' + escapeHtml(lot.availableSpaces) +
+              ' / ' + escapeHtml(lot.totalSpaces) + '면') +
           (lot.distanceText
             ? '<br>목적지까지 직선거리 ' + escapeHtml(lot.distanceText)
             : '') +
@@ -176,11 +181,10 @@
       Number(lot.longitude)
     );
 
+    selectedParkingMarker = parkingMarkers[index];
     map.panTo(position);
 
-    if (parkingInfoWindows[index] && parkingMarkers[index]) {
-      parkingInfoWindows[index].open(map, parkingMarkers[index]);
-    }
+    parkingInfoWindows.forEach(infoWindow => infoWindow.close());
   };
 
   window.moveToCurrentLocation = function(latitude, longitude) {
@@ -207,23 +211,23 @@
     map.panTo(position);
   };
 
-  function updateRouteBounds() {
-    if (!map) return;
-
+  window.fitSelectedRoute = function(bottomPadding, walkingOnly) {
+    if (!map || (!carRoutePolyline && !walkingRoutePolyline)) return;
     const bounds = new kakao.maps.LatLngBounds();
-    let hasPoints = false;
-
-    [carRoutePolyline, walkingRoutePolyline].forEach(polyline => {
-      if (!polyline) return;
-      const path = polyline.getPath();
-      for (let i = 0; i < path.length; i++) {
-        bounds.extend(path[i]);
-        hasPoints = true;
-      }
-    });
-
-    if (hasPoints) map.setBounds(bounds);
-  }
+    if (carRoutePolyline && (!walkingOnly || !walkingRoutePolyline)) {
+      carRoutePolyline.getPath().forEach(point => bounds.extend(point));
+    }
+    if (walkingRoutePolyline) {
+      walkingRoutePolyline.getPath().forEach(point => bounds.extend(point));
+    }
+    if (selectedParkingMarker) bounds.extend(selectedParkingMarker.getPosition());
+    if ((!walkingOnly || walkingRoutePolyline) && destinationMarker) {
+      bounds.extend(destinationMarker.getPosition());
+    }
+    const height = document.getElementById('map').clientHeight;
+    const bottom = Math.min(bottomPadding, Math.max(24, height - 144));
+    map.setBounds(bounds, 80, 24, bottom, 24);
+  };
 
   window.clearRoutes = function() {
     if (carRoutePolyline) {
@@ -257,7 +261,7 @@
       strokeStyle: 'solid'
     });
 
-    updateRouteBounds();
+
   };
 
   window.drawWalkingRoute = function(path) {
@@ -281,7 +285,7 @@
       strokeStyle: 'solid'
     });
 
-    updateRouteBounds();
+
   };
 
   kakao.maps.load(initMap);

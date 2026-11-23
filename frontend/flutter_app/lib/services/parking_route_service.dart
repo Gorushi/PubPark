@@ -4,17 +4,63 @@ import '../models/destination_place.dart';
 import '../models/parking_route.dart';
 import 'parking_api_service.dart';
 
+enum SortOption {
+  availability('여유순'),
+  optimal('최적순'),
+  distance('직선거리순');
+
+  final String label;
+  const SortOption(this.label);
+}
+
 class ParkingRouteService {
   final ParkingApiService _apiService;
 
   ParkingRouteService({ParkingApiService? apiService})
       : _apiService = apiService ?? ParkingApiService();
 
-  /// 백엔드 API를 통해 목적지 주변 실시간 주차장 조회
+  /// 백엔드 API를 통해 목적지 주변 실시간 주차장 조회 및 정렬
   Future<List<ParkingRouteResult>> fetchRoutes(
-    DestinationPlace destination,
-  ) async {
-    return await _apiService.fetchNearbyParkingLots(destination);
+    DestinationPlace destination, {
+    SortOption sortOption = SortOption.availability,
+  }) async {
+    final results = await _apiService.fetchNearbyParkingLots(destination);
+    return sortResults(results, sortOption);
+  }
+
+  /// 정렬 옵션에 맞춰 주차장 목록 정렬
+  static List<ParkingRouteResult> sortResults(
+    List<ParkingRouteResult> results,
+    SortOption sortOption,
+  ) {
+    final sorted = List<ParkingRouteResult>.from(results);
+    switch (sortOption) {
+      case SortOption.availability:
+        sorted.sort((a, b) {
+          final comp = (b.parkingLot.availableSpaces ?? -1)
+              .compareTo(a.parkingLot.availableSpaces ?? -1);
+          if (comp != 0) return comp;
+          return a.distanceMeters.compareTo(b.distanceMeters);
+        });
+        break;
+      case SortOption.optimal:
+        sorted.sort((a, b) {
+          // 최적 점수 계산: (잔여 주차면수 * 20) - 직선거리(m)
+          final availableA = a.parkingLot.availableSpaces;
+          final availableB = b.parkingLot.availableSpaces;
+          final group = ((availableB ?? -1) > 0 ? 2 : availableB == 0 ? 1 : 0)
+              .compareTo((availableA ?? -1) > 0 ? 2 : availableA == 0 ? 1 : 0);
+          if (group != 0) return group;
+          final scoreA = (availableA ?? 0) * 20 - a.distanceMeters;
+          final scoreB = (availableB ?? 0) * 20 - b.distanceMeters;
+          return scoreB.compareTo(scoreA);
+        });
+        break;
+      case SortOption.distance:
+        sorted.sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
+        break;
+    }
+    return sorted;
   }
 
   static double calculateDistance({
